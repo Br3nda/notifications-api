@@ -1,5 +1,5 @@
 import json
-from datetime import (datetime)
+from datetime import datetime
 from collections import namedtuple
 
 from flask import current_app
@@ -176,7 +176,6 @@ def send_sms(self,
             notification_type=SMS_TYPE,
             api_key_id=api_key_id,
             key_type=key_type,
-            created_at=created_at,
             job_id=notification.get('job', None),
             job_row_number=notification.get('row_number', None),
             notification_id=notification_id
@@ -188,7 +187,11 @@ def send_sms(self,
         )
 
         current_app.logger.info(
-            "SMS {} created at {} for job {}".format(saved_notification.id, created_at, notification.get('job', None))
+            "SMS {} created at {} for job {}".format(
+                saved_notification.id,
+                saved_notification.created_at,
+                saved_notification.job_id
+            )
         )
 
     except SQLAlchemyError as e:
@@ -221,7 +224,6 @@ def send_email(self,
             notification_type=EMAIL_TYPE,
             api_key_id=api_key_id,
             key_type=key_type,
-            created_at=created_at,
             job_id=notification.get('job', None),
             job_row_number=notification.get('row_number', None),
             notification_id=notification_id
@@ -232,7 +234,13 @@ def send_email(self,
             queue=QueueNames.SEND_EMAIL if not service.research_mode else QueueNames.RESEARCH_MODE
         )
 
-        current_app.logger.info("Email {} created at {}".format(saved_notification.id, created_at))
+        current_app.logger.info(
+            "Email {} created at {} for job {}".format(
+                saved_notification.id,
+                saved_notification.created_at,
+                saved_notification.job_id
+            )
+        )
     except SQLAlchemyError as e:
         handle_exception(self, notification, notification_id, e)
 
@@ -262,14 +270,19 @@ def persist_letter(
             notification_type=LETTER_TYPE,
             api_key_id=None,
             key_type=KEY_TYPE_NORMAL,
-            created_at=created_at,
             job_id=notification['job'],
             job_row_number=notification['row_number'],
             notification_id=notification_id,
             reference=create_random_identifier()
         )
 
-        current_app.logger.info("Letter {} created at {}".format(saved_notification.id, created_at))
+        current_app.logger.info(
+            "Letter {} created at {} for job {}".format(
+                saved_notification.id,
+                saved_notification.created_at,
+                saved_notification.job_id
+            )
+        )
     except SQLAlchemyError as e:
         handle_exception(self, notification, notification_id, e)
 

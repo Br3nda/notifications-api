@@ -111,6 +111,8 @@ def test_should_process_sms_job(sample_job, mocker):
         (str(sample_job.service_id),
          "uuid",
          "something_encrypted",
+
+         # still send time for now for backwards compatability
          "2016-01-01T11:09:00.061258Z"),
         queue="database-tasks"
     )
@@ -239,6 +241,8 @@ def test_should_process_email_job_if_exactly_on_send_limits(notify_db,
             str(job.service_id),
             "uuid",
             "something_encrypted",
+
+            # still send time for now for backwards compatability
             "2016-01-01T11:09:00.061258Z"
         ),
         queue="database-tasks"
@@ -285,6 +289,8 @@ def test_should_process_email_job(email_job_with_placeholders, mocker):
             str(email_job_with_placeholders.service_id),
             "uuid",
             "something_encrypted",
+
+            # still send time for now for backwards compatability
             "2016-01-01T11:09:00.061258Z"
         ),
         queue="database-tasks"
@@ -390,6 +396,8 @@ def test_process_row_sends_letter_task(template_type, research_mode, expected_fu
             'noti_uuid',
             # encrypted data
             encrypt_mock.return_value,
+
+            # still send time for now for backwards compatability
             '2001-01-01T12:00:00.000000Z'
         ),
         queue=expected_queue
@@ -403,19 +411,20 @@ def test_should_send_template_to_correct_sms_task_and_persist(sample_template_wi
 
     mocked_deliver_sms = mocker.patch('app.celery.provider_tasks.deliver_sms.apply_async')
 
-    send_sms(
-        sample_template_with_placeholders.service_id,
-        uuid.uuid4(),
-        encryption.encrypt(notification),
-        datetime.utcnow().strftime(DATETIME_FORMAT)
-    )
+    with freeze_time('2017-01-01 12:00'):
+        send_sms(
+            sample_template_with_placeholders.service_id,
+            uuid.uuid4(),
+            encryption.encrypt(notification),
+            created_at=None
+        )
 
     persisted_notification = Notification.query.one()
     assert persisted_notification.to == '+447234123123'
     assert persisted_notification.template_id == sample_template_with_placeholders.id
     assert persisted_notification.template_version == sample_template_with_placeholders.version
     assert persisted_notification.status == 'created'
-    assert persisted_notification.created_at <= datetime.utcnow()
+    assert persisted_notification.created_at == datetime(2017, 1, 1, 12, 0)
     assert not persisted_notification.sent_at
     assert not persisted_notification.sent_by
     assert not persisted_notification.job_id
@@ -445,7 +454,7 @@ def test_should_put_send_sms_task_in_research_mode_queue_if_research_mode_servic
         template.service_id,
         notification_id,
         encryption.encrypt(notification),
-        datetime.utcnow().strftime(DATETIME_FORMAT)
+        created_at=None
     )
     persisted_notification = Notification.query.one()
     provider_tasks.deliver_sms.apply_async.assert_called_once_with(
@@ -465,11 +474,12 @@ def test_should_send_sms_if_restricted_service_and_valid_number(notify_db, notif
 
     notification_id = uuid.uuid4()
     encrypt_notification = encryption.encrypt(notification)
+
     send_sms(
         service.id,
         notification_id,
         encrypt_notification,
-        datetime.utcnow().strftime(DATETIME_FORMAT)
+        created_at=None
     )
 
     persisted_notification = Notification.query.one()
@@ -477,7 +487,6 @@ def test_should_send_sms_if_restricted_service_and_valid_number(notify_db, notif
     assert persisted_notification.template_id == template.id
     assert persisted_notification.template_version == template.version
     assert persisted_notification.status == 'created'
-    assert persisted_notification.created_at <= datetime.utcnow()
     assert not persisted_notification.sent_at
     assert not persisted_notification.sent_by
     assert not persisted_notification.job_id
@@ -504,8 +513,8 @@ def test_should_send_sms_if_restricted_service_and_non_team_number_with_test_key
         service.id,
         notification_id,
         encryption.encrypt(notification),
-        datetime.utcnow().strftime(DATETIME_FORMAT),
-        key_type=KEY_TYPE_TEST
+        key_type=KEY_TYPE_TEST,
+        created_at=None
     )
 
     persisted_notification = Notification.query.one()
@@ -532,8 +541,8 @@ def test_should_send_email_if_restricted_service_and_non_team_email_address_with
         service.id,
         notification_id,
         encryption.encrypt(notification),
-        datetime.utcnow().strftime(DATETIME_FORMAT),
-        key_type=KEY_TYPE_TEST
+        key_type=KEY_TYPE_TEST,
+        created_at=None
     )
 
     persisted_notification = Notification.query.one()
@@ -556,7 +565,7 @@ def test_should_not_send_sms_if_restricted_service_and_invalid_number(notify_db,
         service.id,
         notification_id,
         encryption.encrypt(notification),
-        datetime.utcnow().strftime(DATETIME_FORMAT)
+        created_at=None
     )
     assert provider_tasks.deliver_sms.apply_async.called is False
     assert Notification.query.count() == 0
@@ -575,7 +584,7 @@ def test_should_not_send_email_if_restricted_service_and_invalid_email_address(n
         service.id,
         notification_id,
         encryption.encrypt(notification),
-        datetime.utcnow().strftime(DATETIME_FORMAT)
+        created_at=None
     )
 
     assert Notification.query.count() == 0
@@ -600,7 +609,7 @@ def test_should_put_send_email_task_in_research_mode_queue_if_research_mode_serv
         template.service_id,
         notification_id,
         encryption.encrypt(notification),
-        datetime.utcnow().strftime(DATETIME_FORMAT)
+        created_at=None
     )
 
     persisted_notification = Notification.query.one()
@@ -657,6 +666,7 @@ def test_should_update_job_to_sent_to_dvla_in_research_mode_for_letter_job(
             str(sample_letter_job.service_id),
             fake_uuid,
             test_encrypted_data,
+            # still send time for now for backwards compatability
             datetime.utcnow().strftime(DATETIME_FORMAT)
         ),
         queue=QueueNames.RESEARCH_MODE
@@ -675,22 +685,23 @@ def test_should_send_sms_template_to_and_persist_with_job_id(sample_job, sample_
     mocker.patch('app.celery.provider_tasks.deliver_sms.apply_async')
 
     notification_id = uuid.uuid4()
-    now = datetime.utcnow()
-    send_sms(
-        sample_job.service.id,
-        notification_id,
-        encryption.encrypt(notification),
-        now.strftime(DATETIME_FORMAT),
-        api_key_id=str(sample_api_key.id),
-        key_type=KEY_TYPE_NORMAL
-    )
+    with freeze_time('2017-01-01 12:00'):
+        send_sms(
+            sample_job.service.id,
+            notification_id,
+            encryption.encrypt(notification),
+            api_key_id=str(sample_api_key.id),
+            key_type=KEY_TYPE_NORMAL,
+            created_at=None
+        )
+
     persisted_notification = Notification.query.one()
     assert persisted_notification.to == '+447234123123'
     assert persisted_notification.job_id == sample_job.id
     assert persisted_notification.template_id == sample_job.template.id
     assert persisted_notification.status == 'created'
     assert not persisted_notification.sent_at
-    assert persisted_notification.created_at <= now
+    assert persisted_notification.created_at == datetime(2017, 1, 1, 12, 0)
     assert not persisted_notification.sent_by
     assert persisted_notification.job_row_number == 2
     assert persisted_notification.api_key_id == sample_api_key.id
@@ -718,15 +729,14 @@ def test_should_not_send_email_if_team_key_and_recipient_not_in_team(sample_emai
     assert "my_email@my_email.com" not in team_members
 
     with freeze_time("2016-01-01 11:09:00.00000"):
-        now = datetime.utcnow()
 
         send_email(
             sample_email_template_with_placeholders.service_id,
             notification_id,
             encryption.encrypt(notification),
-            now.strftime(DATETIME_FORMAT),
             api_key_id=str(sample_team_api_key.id),
-            key_type=KEY_TYPE_TEAM
+            key_type=KEY_TYPE_TEAM,
+            created_at=None
         )
 
         assert Notification.query.count() == 0
@@ -751,7 +761,7 @@ def test_should_not_send_sms_if_team_key_and_recipient_not_in_team(notify_db, no
         service.id,
         notification_id,
         encryption.encrypt(notification),
-        datetime.utcnow().strftime(DATETIME_FORMAT)
+        created_at=None
     )
     assert provider_tasks.deliver_sms.apply_async.called is False
     assert Notification.query.count() == 0
@@ -760,7 +770,6 @@ def test_should_not_send_sms_if_team_key_and_recipient_not_in_team(notify_db, no
 def test_should_use_email_template_and_persist(sample_email_template_with_placeholders, sample_api_key, mocker):
     mocker.patch('app.celery.provider_tasks.deliver_email.apply_async')
 
-    now = datetime(2016, 1, 1, 11, 9, 0)
     notification_id = uuid.uuid4()
 
     with freeze_time("2016-01-01 12:00:00.000000"):
@@ -775,16 +784,16 @@ def test_should_use_email_template_and_persist(sample_email_template_with_placeh
             sample_email_template_with_placeholders.service_id,
             notification_id,
             encryption.encrypt(notification),
-            now.strftime(DATETIME_FORMAT),
             api_key_id=str(sample_api_key.id),
-            key_type=sample_api_key.key_type
+            key_type=sample_api_key.key_type,
+            created_at=None
         )
 
     persisted_notification = Notification.query.one()
     assert persisted_notification.to == 'my_email@my_email.com'
     assert persisted_notification.template_id == sample_email_template_with_placeholders.id
     assert persisted_notification.template_version == sample_email_template_with_placeholders.version
-    assert persisted_notification.created_at == now
+    assert persisted_notification.created_at == datetime(2016, 1, 1, 11, 10)
     assert not persisted_notification.sent_at
     assert persisted_notification.status == 'created'
     assert not persisted_notification.sent_by
@@ -809,19 +818,18 @@ def test_send_email_should_use_template_version_from_job_not_latest(sample_email
     dao_update_template(sample_email_template)
     t = dao_get_template_by_id(sample_email_template.id)
     assert t.version > version_on_notification
-    now = datetime.utcnow()
+
     send_email(
         sample_email_template.service_id,
         uuid.uuid4(),
         encryption.encrypt(notification),
-        now.strftime(DATETIME_FORMAT)
+        created_at=None
     )
 
     persisted_notification = Notification.query.one()
     assert persisted_notification.to == 'my_email@my_email.com'
     assert persisted_notification.template_id == sample_email_template.id
     assert persisted_notification.template_version == version_on_notification
-    assert persisted_notification.created_at == now
     assert not persisted_notification.sent_at
     assert persisted_notification.status == 'created'
     assert not persisted_notification.sent_by
@@ -836,18 +844,16 @@ def test_should_use_email_template_subject_placeholders(sample_email_template_wi
     mocker.patch('app.celery.provider_tasks.deliver_email.apply_async')
 
     notification_id = uuid.uuid4()
-    now = datetime.utcnow()
     send_email(
         sample_email_template_with_placeholders.service_id,
         notification_id,
         encryption.encrypt(notification),
-        now.strftime(DATETIME_FORMAT)
+        created_at=None
     )
     persisted_notification = Notification.query.one()
     assert persisted_notification.to == 'my_email@my_email.com'
     assert persisted_notification.template_id == sample_email_template_with_placeholders.id
     assert persisted_notification.status == 'created'
-    assert persisted_notification.created_at == now
     assert not persisted_notification.sent_by
     assert persisted_notification.personalisation == {"name": "Jo"}
     assert not persisted_notification.reference
@@ -863,17 +869,17 @@ def test_should_use_email_template_and_persist_without_personalisation(sample_em
 
     notification_id = uuid.uuid4()
 
-    now = datetime.utcnow()
-    send_email(
-        sample_email_template.service_id,
-        notification_id,
-        encryption.encrypt(notification),
-        now.strftime(DATETIME_FORMAT)
-    )
+    with freeze_time('2017-01-01 12:00'):
+        send_email(
+            sample_email_template.service_id,
+            notification_id,
+            encryption.encrypt(notification),
+            created_at=None
+        )
     persisted_notification = Notification.query.one()
     assert persisted_notification.to == 'my_email@my_email.com'
     assert persisted_notification.template_id == sample_email_template.id
-    assert persisted_notification.created_at == now
+    assert persisted_notification.created_at == datetime(2017, 1, 1, 12, 0)
     assert not persisted_notification.sent_at
     assert persisted_notification.status == 'created'
     assert not persisted_notification.sent_by
@@ -892,7 +898,6 @@ def test_send_sms_should_go_to_retry_queue_if_database_errors(sample_template, m
     mocker.patch('app.celery.provider_tasks.deliver_sms.apply_async')
     mocker.patch('app.celery.tasks.send_sms.retry', side_effect=Retry)
     mocker.patch('app.notifications.process_notifications.dao_create_notification', side_effect=expected_exception)
-    now = datetime.utcnow()
 
     notification_id = uuid.uuid4()
 
@@ -901,7 +906,7 @@ def test_send_sms_should_go_to_retry_queue_if_database_errors(sample_template, m
             sample_template.service_id,
             notification_id,
             encryption.encrypt(notification),
-            now.strftime(DATETIME_FORMAT)
+            created_at=None
         )
     assert provider_tasks.deliver_sms.apply_async.called is False
     tasks.send_sms.retry.assert_called_with(exc=expected_exception, queue="retry-tasks")
@@ -917,8 +922,6 @@ def test_send_email_should_go_to_retry_queue_if_database_errors(sample_email_tem
     mocker.patch('app.celery.provider_tasks.deliver_email.apply_async')
     mocker.patch('app.celery.tasks.send_email.retry', side_effect=Retry)
     mocker.patch('app.notifications.process_notifications.dao_create_notification', side_effect=expected_exception)
-    now = datetime.utcnow()
-
     notification_id = uuid.uuid4()
 
     with pytest.raises(Retry):
@@ -926,7 +929,7 @@ def test_send_email_should_go_to_retry_queue_if_database_errors(sample_email_tem
             sample_email_template.service_id,
             notification_id,
             encryption.encrypt(notification),
-            now.strftime(DATETIME_FORMAT)
+            created_at=None
         )
     assert not provider_tasks.deliver_email.apply_async.called
     tasks.send_email.retry.assert_called_with(exc=expected_exception, queue="retry-tasks")
@@ -938,7 +941,6 @@ def test_send_email_does_not_send_duplicate_and_does_not_put_in_retry_queue(samp
     json = _notification_json(sample_notification.template, sample_notification.to, job_id=uuid.uuid4(), row_number=1)
     deliver_email = mocker.patch('app.celery.provider_tasks.deliver_email.apply_async')
     retry = mocker.patch('app.celery.tasks.send_email.retry', side_effect=Exception())
-    now = datetime.utcnow()
 
     notification_id = sample_notification.id
 
@@ -946,7 +948,7 @@ def test_send_email_does_not_send_duplicate_and_does_not_put_in_retry_queue(samp
         sample_notification.service_id,
         notification_id,
         encryption.encrypt(json),
-        now.strftime(DATETIME_FORMAT)
+        created_at=None
     )
     assert Notification.query.count() == 1
     assert not deliver_email.called
@@ -957,7 +959,6 @@ def test_send_sms_does_not_send_duplicate_and_does_not_put_in_retry_queue(sample
     json = _notification_json(sample_notification.template, sample_notification.to, job_id=uuid.uuid4(), row_number=1)
     deliver_sms = mocker.patch('app.celery.provider_tasks.deliver_sms.apply_async')
     retry = mocker.patch('app.celery.tasks.send_sms.retry', side_effect=Exception())
-    now = datetime.utcnow()
 
     notification_id = sample_notification.id
 
@@ -965,7 +966,7 @@ def test_send_sms_does_not_send_duplicate_and_does_not_put_in_retry_queue(sample
         sample_notification.service_id,
         notification_id,
         encryption.encrypt(json),
-        now.strftime(DATETIME_FORMAT)
+        created_at=None
     )
     assert Notification.query.count() == 1
     assert not deliver_sms.called
@@ -993,14 +994,14 @@ def test_persist_letter_saves_letter_to_database(sample_letter_job, mocker):
         row_number=1
     )
     notification_id = uuid.uuid4()
-    created_at = datetime.utcnow()
 
-    persist_letter(
-        sample_letter_job.service_id,
-        notification_id,
-        encryption.encrypt(notification_json),
-        created_at
-    )
+    with freeze_time('2017-01-01 12:00'):
+        persist_letter(
+            sample_letter_job.service_id,
+            notification_id,
+            encryption.encrypt(notification_json),
+            created_at=None
+        )
 
     notification_db = Notification.query.one()
     assert notification_db.id == notification_id
@@ -1009,7 +1010,7 @@ def test_persist_letter_saves_letter_to_database(sample_letter_job, mocker):
     assert notification_db.template_id == sample_letter_job.template.id
     assert notification_db.template_version == sample_letter_job.template.version
     assert notification_db.status == 'created'
-    assert notification_db.created_at == created_at
+    assert notification_db.created_at == datetime(2017, 1, 1, 12, 0)
     assert notification_db.notification_type == 'letter'
     assert notification_db.sent_at is None
     assert notification_db.sent_by is None
