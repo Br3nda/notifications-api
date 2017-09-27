@@ -131,7 +131,8 @@ def process_sms_or_email_notification(*, form, notification_type, api_key, templ
         api_key_id=api_key.id,
         key_type=api_key.key_type,
         client_reference=form.get('reference', None),
-        simulated=simulated
+        simulated=simulated,
+        reply_to_id=form.get('service_email_reply_to_id', None)
     )
 
     scheduled_for = form.get("scheduled_for", None)

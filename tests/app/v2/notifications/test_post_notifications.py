@@ -418,6 +418,33 @@ def test_post_sms_should_persist_supplied_sms_number(client, sample_template_wit
     assert mocked.called
 
 
+def test_post_email_with_reply_to_should_persist_reply_to(client, sample_email_template, mocker):
+    from tests.app.db import create_reply_to_email
+    reply_to = create_reply_to_email(sample_email_template.service, 'reply_to@example.com')
+
+    mocked = mocker.patch('app.celery.provider_tasks.deliver_email.apply_async')
+    data = {
+        'email_address': 'test@example.com',
+        'template_id': str(sample_email_template.id),
+        'service_email_reply_to_id': str(reply_to.id)
+    }
+
+    auth_header = create_authorization_header(service_id=sample_email_template.service_id)
+
+    response = client.post(
+        path='/v2/notifications/email',
+        data=json.dumps(data),
+        headers=[('Content-Type', 'application/json'), auth_header])
+    assert response.status_code == 201
+    resp_json = json.loads(response.get_data(as_text=True))
+    notifications = Notification.query.all()
+    assert len(notifications) == 1
+    notification_id = notifications[0].id
+    assert 'reply_to@example.com' == notifications[0].email_reply_to.email_address
+    assert resp_json['id'] == str(notification_id)
+    assert mocked.called
+
+
 @pytest.mark.parametrize("notification_type, key_send_to, send_to",
                          [("sms", "phone_number", "07700 900 855"),
                           ("email", "email_address", "sample@email.com")])
