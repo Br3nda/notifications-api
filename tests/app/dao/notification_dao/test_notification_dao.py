@@ -1943,3 +1943,10 @@ def test_dao_get_notifications_by_to_field_orders_by_created_at_desc(sample_temp
     assert len(notifications) == 2
     assert notifications[0].id == notification.id
     assert notifications[1].id == notification_a_minute_ago.id
+
+
+def test_dao_set_email_reply_to_notifications_gets_set(sample_notification):
+    from tests.app.db import create_reply_to_email
+    reply_to = create_reply_to_email(sample_notification.service, 'test@example.com')
+    sample_notification.email_reply_to_id = reply_to.id
+    assert sample_notification.email_reply_to.email_address == 'test@example.com'
