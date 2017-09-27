@@ -854,6 +854,10 @@ class Notification(db.Model):
         unique=False,
         nullable=True)
     sent_by = db.Column(db.String, nullable=True)
+    email_reply_to_id = db.Column(
+        UUID(as_uuid=True),
+        db.ForeignKey('service_email_reply_to.id'), index=True, unique=False)
+    email_reply_to = db.relationship('ServiceEmailReplyTo')
     updated_at = db.Column(
         db.DateTime,
         index=False,
@@ -1416,22 +1420,25 @@ class ServiceLetterContact(db.Model):
         }
 
 
-class NotificationSmsSender(db.Model):
-    __tablename__ = "notification_to_email_sender"
+# class NotificationEmailReplyTo(db.Model):
+#     __tablename__ = "notification_to_email_reply_to"
 
-    notification_id = db.Column(
-        UUID(as_uuid=True),
-        db.ForeignKey('notifications.id'),
-        unique=False,
-        index=True,
-        nullable=False,
-        primary_key=True
-    )
-    service_email_reply_to_id = db.Column(
-        UUID(as_uuid=True),
-        db.ForeignKey('service_email_reply_to.id'),
-        unique=False,
-        index=True,
-        nullable=False,
-        primary_key=True
-    )
+#     notification_id = db.Column(
+#         UUID(as_uuid=True),
+#         db.ForeignKey('notifications.id'),
+#         unique=False,
+#         index=True,
+#         nullable=False,
+#         primary_key=True
+#     )
+#     service_email_reply_to_id = db.Column(
+#         UUID(as_uuid=True),
+#         db.ForeignKey('service_email_reply_to.id'),
+#         unique=False,
+#         index=True,
+#         nullable=False,
+#         primary_key=True
+#     )
+
+#     service_email_reply_to = db.relationship(
+#         Notification, backref=db.backref("email_reply_to", cascade="all, delete-orphan", uselist=False))
