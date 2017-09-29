@@ -127,7 +127,7 @@ def dao_update_job(job):
 
 
 def dao_update_job_status(job_id, status):
-    db.session.query(Job).filter_by(id=job_id).update({'job_status': status})
+    db.session.query(Job).filter_by(id=job_id).update({'job_status': status, 'updated_at': datetime.utcnow()})
     db.session.commit()
 
 
