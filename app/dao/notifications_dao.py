@@ -560,23 +560,21 @@ def dao_get_total_notifications_sent_per_day_for_performance_platform(start_date
     ).one()
 
 
+@transactional
 def dao_create_notification_email_reply_to_mapping(notification_id, email_reply_to_id):
-    email_reply_to = NotificationEmailReplyTo.query.filter_by(notification_id=notification_id).all()
-
-    if len(email_reply_to) == 0:
-        notification_email_reply_to = NotificationEmailReplyTo(
-            notification_id=notification_id,
-            service_email_reply_to_id=email_reply_to_id
-        )
-        db.session.add(notification_email_reply_to)
+    notification_email_reply_to = NotificationEmailReplyTo(
+        notification_id=notification_id,
+        service_email_reply_to_id=email_reply_to_id
+    )
+    db.session.add(notification_email_reply_to)
 
 
-def dao_get_notification_email_reply_for_notification(notification_id):
+def dao_get_notification_reply_to_email_address(notification_id):
     email_reply_to = ServiceEmailReplyTo.query.join(
         NotificationEmailReplyTo
     ).filter(
         NotificationEmailReplyTo.notification_id == notification_id
-    ).all()
+    ).first()
 
-    if len(email_reply_to) == 1:
-        return email_reply_to[0].email_address
+    if email_reply_to:
+        return email_reply_to.email_address

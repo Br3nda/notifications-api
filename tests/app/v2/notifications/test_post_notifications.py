@@ -9,7 +9,7 @@ from app.models import (
 )
 from flask import json, current_app
 
-from app.models import Notification
+from app.models import Notification, NotificationEmailReplyTo
 from app.schema_validation import validate
 from app.v2.errors import RateLimitError
 from app.v2.notifications.notification_schemas import post_sms_response, post_email_response
@@ -524,3 +524,46 @@ def test_post_email_notification_with_valid_reply_to_id_returns_201(client, samp
     notification = Notification.query.first()
     assert resp_json['id'] == str(notification.id)
     assert mocked.called
+
+
+def test_post_email_notification_without_reply_to_id_does_not_persist_mapping(
+        client, sample_email_template, mocker):
+    mocked = mocker.patch('app.celery.provider_tasks.deliver_email.apply_async')
+    data = {
+        "email_address": sample_email_template.service.users[0].email_address,
+        "template_id": sample_email_template.id,
+    }
+    auth_header = create_authorization_header(service_id=sample_email_template.service_id)
+    response = client.post(
+        path="v2/notifications/email",
+        data=json.dumps(data),
+        headers=[('Content-Type', 'application/json'), auth_header])
+
+    assert response.status_code == 201
+    notification = Notification.query.first()
+
+    noti_email_reply_to = NotificationEmailReplyTo.query.all()
+
+    assert not noti_email_reply_to
+
+
+def test_post_email_notification_with_valid_reply_to_id_persists_mapping(client, sample_email_template, mocker):
+    reply_to_email = create_reply_to_email(sample_email_template.service, 'test@test.com')
+    mocked = mocker.patch('app.celery.provider_tasks.deliver_email.apply_async')
+    data = {
+        "email_address": sample_email_template.service.users[0].email_address,
+        "template_id": sample_email_template.id,
+        'email_reply_to_id': reply_to_email.id
+    }
+    auth_header = create_authorization_header(service_id=sample_email_template.service_id)
+    response = client.post(
+        path="v2/notifications/email",
+        data=json.dumps(data),
+        headers=[('Content-Type', 'application/json'), auth_header])
+
+    assert response.status_code == 201
+    notification = Notification.query.first()
+    noti_email_reply_to = NotificationEmailReplyTo.query.one()
+
+    assert noti_email_reply_to.notification_id == notification.id
+    assert noti_email_reply_to.service_email_reply_to_id == reply_to_email.id

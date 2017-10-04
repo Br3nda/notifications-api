@@ -23,8 +23,13 @@ from app.models import (
     BRANDING_BOTH,
     BRANDING_ORG_BANNER)
 
-from tests.app.db import create_service, create_template, create_notification, create_inbound_number, \
+from tests.app.db import (
+    create_service,
+    create_template,
+    create_notification,
+    create_inbound_number,
     create_reply_to_email
+)
 
 
 def test_should_return_highest_priority_active_provider(restore_provider_details):
@@ -400,6 +405,38 @@ def test_send_email_should_use_service_reply_to_email(
         body=ANY,
         html_body=ANY,
         reply_to_address=sample_service.get_default_reply_to_email_address()
+    )
+
+
+def test_send_email_should_use_notification_reply_to_email(
+        sample_service,
+        sample_email_template,
+        mocker):
+    mocker.patch('app.aws_ses_client.send_email', return_value='reference')
+    mocker.patch('app.delivery.send_to_providers.create_initial_notification_statistic_tasks')
+
+    db_notification = create_notification(template=sample_email_template)
+    reply_to_emails = [
+        create_reply_to_email(service=sample_service, email_address='foo@bar.com'),
+        create_reply_to_email(service=sample_service, email_address='ping@pong.com', is_default=False)
+    ]
+
+    notifications_dao.dao_create_notification_email_reply_to_mapping(
+        db_notification.id,
+        reply_to_emails[1].id
+    )
+
+    send_to_providers.send_email_to_provider(
+        db_notification,
+    )
+
+    app.aws_ses_client.send_email.assert_called_once_with(
+        ANY,
+        ANY,
+        ANY,
+        body=ANY,
+        html_body=ANY,
+        reply_to_address=reply_to_emails[1].email_address
     )
 
 

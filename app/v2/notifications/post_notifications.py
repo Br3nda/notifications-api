@@ -5,6 +5,7 @@ from flask import request, jsonify, current_app, abort
 from app import api_user, authenticated_service
 from app.config import QueueNames
 from app.dao.jobs_dao import dao_update_job
+from app.dao.notifications_dao import dao_create_notification_email_reply_to_mapping
 from app.models import SMS_TYPE, EMAIL_TYPE, LETTER_TYPE, PRIORITY, KEY_TYPE_TEST, KEY_TYPE_TEAM
 from app.celery.tasks import build_dvla_file, update_job_to_sent_to_dvla
 from app.notifications.process_notifications import (
@@ -147,6 +148,10 @@ def process_sms_or_email_notification(*, form, notification_type, api_key, templ
             )
         else:
             current_app.logger.info("POST simulated notification for id: {}".format(notification.id))
+
+    email_reply_to_id = form.get("email_reply_to_id", None)
+    if email_reply_to_id:
+        dao_create_notification_email_reply_to_mapping(notification.id, email_reply_to_id)
 
     return notification
 
