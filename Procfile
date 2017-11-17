@@ -1,1 +1,1 @@
-app: scripts/run_app.sh
+app: python3 application.py runserver
