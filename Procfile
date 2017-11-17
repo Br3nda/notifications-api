@@ -1,1 +1,1 @@
-app: cripts/run_app.sh
+app: scripts/run_app.sh
